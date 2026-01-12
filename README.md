@@ -27,7 +27,7 @@
 ### Installation
 
 ```bash
-git clone https://github.com/username/Zen-C.git
+git clone https://github.com/z-libs/Zen-C.git
 cd Zen-C
 make
 sudo make install
