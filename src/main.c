@@ -28,6 +28,7 @@ void print_usage()
     printf("  build   Compile to executable\n");
     printf("  check   Check for errors only\n");
     printf("  repl    Start Interactive REPL\n");
+    printf("  transpile Transpile to C code only (no compilation)\n");
     printf("  lsp     Start Language Server\n");
     printf("Options:\n");
     printf("  -o <file>       Output executable name\n");
@@ -65,6 +66,11 @@ int main(int argc, char **argv)
     {
         run_repl(argv[0]); // Pass self path for recursive calls
         return 0;
+    }
+    else if (strcmp(command, "transpile") == 0)
+    {
+        g_config.mode_transpile = 1;
+        g_config.emit_c = 1; // Transpile implies emitting C
     }
     else if (strcmp(command, "run") == 0)
     {
@@ -265,6 +271,32 @@ int main(int argc, char **argv)
 
     codegen_node(&ctx, root, out);
     fclose(out);
+
+    if (g_config.mode_transpile)
+    {
+        if (g_config.output_file)
+        {
+            // If user specified -o, rename out.c to that
+            if (rename("out.c", g_config.output_file) != 0)
+            {
+                perror("rename out.c");
+                return 1;
+            }
+            if (!g_config.quiet)
+            {
+                printf("[zc] Transpiled to %s\n", g_config.output_file);
+            }
+        }
+        else
+        {
+            if (!g_config.quiet)
+            {
+                printf("[zc] Transpiled to out.c\n");
+            }
+        }
+        // Done, no C compilation
+        return 0;
+    }
 
     // Compile C
     char cmd[8192];
