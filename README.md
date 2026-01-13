@@ -435,6 +435,36 @@ fn add(a: int, b: int) -> int {
 
 > **Note:** When using Intel syntax (via `-masm=intel`), you must ensure your build is configured correctly (for example, `//> cflags: -masm=intel`). TCC does not support Intel syntax assembly.
 
+### 14. Build Directives
+
+Zen C supports special comments at the top of your source file to configure the build process without needing a complex build system or Makefile.
+
+| Directive | Arguments | Description |
+|:---|:---|:---|
+| `//> link:` | `-lfoo` or `path/to/lib.a` | Link against a library or object file. |
+| `//> lib:` | `path/to/libs` | Add a library search path (`-L`). |
+| `//> include:` | `path/to/headers` | Add an include search path (`-I`). |
+| `//> cflags:` | `-Wall -O3` | Pass arbitrary flags to the C compiler. |
+| `//> define:` | `MACRO` or `KEY=VAL` | Define a preprocessor macro (`-D`). |
+| `//> pkg-config:` | `gtk+-3.0` | Run `pkg-config` and append `--cflags` and `--libs`. |
+| `//> shell:` | `command` | Execute a shell command during the build. |
+| `//> get:` | `http://url/file` | Download a file if specific file does not exist. |
+| `//> immutable-by-default` | None | Make variables immutable unless declared `mut`. |
+
+#### Examples
+
+```zc
+//> include: ./include
+//> lib: ./libs
+//> link: -lraylib -lm
+//> cflags: -Ofast
+//> pkg-config: gtk+-3.0
+
+import "raylib.h"
+
+fn main() { ... }
+```
+
 ---
 
 ## Compiler Support & Compatibility
