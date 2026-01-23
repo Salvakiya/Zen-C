@@ -1611,6 +1611,8 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
                 lexer_next(&lookahead);
 
                 int valid_generic = 0;
+                int saved_speculative = ctx->is_speculative;
+                ctx->is_speculative = 1;
                 while (1)
                 {
                     parse_type(ctx, &lookahead);
@@ -1625,6 +1627,7 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
                     }
                     break;
                 }
+                ctx->is_speculative = saved_speculative;
 
                 if (valid_generic)
                 {
@@ -2433,7 +2436,7 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
 
             register_tuple(ctx, sig);
 
-            char tuple_name[256];
+            char tuple_name[1024];
             sprintf(tuple_name, "Tuple_%s", sig);
 
             char *code = xmalloc(4096);

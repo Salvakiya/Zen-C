@@ -876,10 +876,10 @@ char *replace_in_string(const char *src, const char *old_w, const char *new_w)
         while (*p_ptr && *c_ptr)
         {
             char *p_end = strchr(p_ptr, ',');
-            int p_len = p_end ? (p_end - p_ptr) : strlen(p_ptr);
+            int p_len = p_end ? (int)(p_end - p_ptr) : (int)strlen(p_ptr);
 
             char *c_end = strchr(c_ptr, ',');
-            int c_len = c_end ? (c_end - c_ptr) : strlen(c_ptr);
+            int c_len = c_end ? (int)(c_end - c_ptr) : (int)strlen(c_ptr);
 
             char *curr_p = xmalloc(p_len + 1);
             strncpy(curr_p, p_ptr, p_len);
@@ -1007,12 +1007,12 @@ char *replace_type_str(const char *src, const char *param, const char *concrete,
         while (*p_ptr && *c_ptr)
         {
             char *p_end = strchr(p_ptr, ',');
-            int p_len = p_end ? (p_end - p_ptr) : strlen(p_ptr);
+            int p_len = p_end ? (int)(p_end - p_ptr) : (int)strlen(p_ptr);
 
             char *c_end = strchr(c_ptr, ',');
-            int c_len = c_end ? (c_end - c_ptr) : strlen(c_ptr);
+            int c_len = c_end ? (int)(c_end - c_ptr) : (int)strlen(c_ptr);
 
-            if (strlen(src) == p_len && strncmp(src, p_ptr, p_len) == 0)
+            if ((int)strlen(src) == p_len && strncmp(src, p_ptr, p_len) == 0)
             {
                 char *ret = xmalloc(c_len + 1);
                 strncpy(ret, c_ptr, c_len);
@@ -1299,11 +1299,11 @@ Type *replace_type_formal(Type *t, const char *p, const char *c, const char *os,
             while (*p_ptr && *c_ptr)
             {
                 char *p_end = strchr(p_ptr, ',');
-                int p_len = p_end ? (p_end - p_ptr) : strlen(p_ptr);
+                int p_len = p_end ? (int)(p_end - p_ptr) : (int)strlen(p_ptr);
                 char *c_end = strchr(c_ptr, ',');
-                int c_len = c_end ? (c_end - c_ptr) : strlen(c_ptr);
+                int c_len = c_end ? (int)(c_end - c_ptr) : (int)strlen(c_ptr);
 
-                if (strlen(t->name) == p_len && strncmp(t->name, p_ptr, p_len) == 0)
+                if ((int)strlen(t->name) == p_len && strncmp(t->name, p_ptr, p_len) == 0)
                 {
                     char *c_part = xmalloc(c_len + 1);
                     strncpy(c_part, c_ptr, c_len);
@@ -1991,6 +1991,8 @@ char *instantiate_function_template(ParserContext *ctx, const char *name, const 
 
 char *process_fstring(ParserContext *ctx, const char *content, char ***used_syms, int *count)
 {
+    (void)used_syms;
+    (void)count;
     char *gen = xmalloc(8192); // Increased buffer size
 
     strcpy(gen, "({ static char _b[4096]; _b[0]=0; char _t[1024]; ");
@@ -3434,4 +3436,42 @@ const char *resolve_plugin(ParserContext *ctx, const char *name_or_alias)
         }
     }
     return NULL; // Plugin not found
+}
+
+// Type Validation
+void register_type_usage(ParserContext *ctx, const char *name, Token t)
+{
+    if (ctx->is_speculative)
+    {
+        return;
+    }
+
+    TypeUsage *u = xmalloc(sizeof(TypeUsage));
+    u->name = xstrdup(name);
+    u->location = t;
+    u->next = ctx->pending_type_validations;
+    ctx->pending_type_validations = u;
+}
+
+int validate_types(ParserContext *ctx)
+{
+    int errors = 0;
+    TypeUsage *u = ctx->pending_type_validations;
+    while (u)
+    {
+        ASTNode *def = find_struct_def(ctx, u->name);
+        const char *alias = find_type_alias(ctx, u->name);
+
+        if (!def && !alias)
+        {
+            SelectiveImport *si = find_selective_import(ctx, u->name);
+            if (!si && !is_trait(u->name))
+            {
+                zpanic_at(u->location, "Unknown type '%s'", u->name);
+                errors++;
+            }
+        }
+        u = u->next;
+    }
+    return errors == 0;
 }

@@ -268,7 +268,22 @@ struct ParserContext
     int is_repl;        // REPL mode flag
     int has_async;      // Track if async features are used
     int in_defer_block; // Track if currently parsing inside a defer block
+
+    // Type Validation
+    struct TypeUsage *pending_type_validations;
+    int is_speculative; // Flag to suppress side effects during speculative parsing
 };
+
+typedef struct TypeUsage
+{
+    char *name;
+    Token location;
+    struct TypeUsage *next;
+} TypeUsage;
+
+// Type validation prototypes
+void register_type_usage(ParserContext *ctx, const char *name, Token t);
+int validate_types(ParserContext *ctx);
 
 // Token helpers
 char *token_strdup(Token t);
