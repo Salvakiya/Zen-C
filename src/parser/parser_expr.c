@@ -7,6 +7,61 @@
 #include <stdlib.h>
 #include <string.h>
 
+static ASTNode *find_function_definition(ParserContext *ctx, const char *name)
+{
+    StructRef *curr = ctx->parsed_funcs_list;
+    while (curr)
+    {
+        if (curr->node && curr->node->func.name && strcmp(curr->node->func.name, name) == 0)
+        {
+            return curr->node;
+        }
+        curr = curr->next;
+    }
+    return NULL;
+}
+
+static void validate_named_arguments(Token call_token, const char *func_name, char **arg_names,
+                                     int args_count, ASTNode *func_def)
+{
+    if (!func_def || !arg_names)
+    {
+        return;
+    }
+
+    for (int i = 0; i < args_count; i++)
+    {
+        // Skip positional arguments (NULL name)
+        if (!arg_names[i])
+        {
+            continue;
+        }
+
+        // Check bounds
+        if (i >= func_def->func.arg_count)
+        {
+            continue;
+        }
+
+        // Check parameter name match
+        const char *expected_name = func_def->func.param_names[i];
+        if (!expected_name)
+        {
+            continue;
+        }
+
+        if (strcmp(arg_names[i], expected_name) != 0)
+        {
+            char msg[256];
+            snprintf(
+                msg, sizeof(msg),
+                "Named arguments must follow function parameter order. Expected '%s' but got '%s'",
+                expected_name, arg_names[i]);
+            zpanic_at(call_token, msg);
+        }
+    }
+}
+
 extern ASTNode *global_user_structs;
 
 // Helper to check if a type is a struct type
@@ -2015,6 +2070,7 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
             ASTNode *head = NULL, *tail = NULL;
             int args_provided = 0;
             char **arg_names = NULL;
+            int arg_names_cap = 0;
             int has_named = 0;
 
             if (lexer_peek(l).type != TOK_RPAREN)
@@ -2073,10 +2129,11 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
                     tail = arg;
                     args_provided++;
 
-                    arg_names = xrealloc(arg_names, args_provided * sizeof(char *));
-                    arg_names[args_provided - 1] = arg_name;
-
-                    arg_names = xrealloc(arg_names, args_provided * sizeof(char *));
+                    if (args_provided > arg_names_cap)
+                    {
+                        arg_names_cap = arg_names_cap ? arg_names_cap * 2 : 8;
+                        arg_names = xrealloc(arg_names, arg_names_cap * sizeof(char *));
+                    }
                     arg_names[args_provided - 1] = arg_name;
 
                     if (lexer_peek(l).type == TOK_COMMA)
@@ -2112,6 +2169,16 @@ ASTNode *parse_primary(ParserContext *ctx, Lexer *l)
                     tail = def;
                 }
             }
+
+            if (has_named && arg_names)
+            {
+                ASTNode *def = find_function_definition(ctx, sig->name);
+                if (def)
+                {
+                    validate_named_arguments(t, sig->name, arg_names, args_provided, def);
+                }
+            }
+
             node = ast_create(NODE_EXPR_CALL);
             node->token = t; // Set source token
             ASTNode *callee = ast_create(NODE_EXPR_VAR);
