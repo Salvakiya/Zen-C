@@ -498,9 +498,10 @@ void codegen_match_internal(ParserContext *ctx, ASTNode *node, FILE *out, int us
         {
             if (is_string_literal)
             {
-                fprintf(out, "({ printf(\"%%s\", ");
-                codegen_expression(ctx, body, out);
-                fprintf(out, "); printf(\"\\n\"); 0; })");
+                char *inner = body->literal.string_val;
+                char *code = process_printf_sugar(ctx, inner, 1, "stdout", NULL, NULL, 0);
+                fprintf(out, "%s;", code);
+                free(code);
             }
             else
             {

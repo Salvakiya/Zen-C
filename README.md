@@ -362,9 +362,9 @@ match val {
 
 // Destructuring Enums
 match shape {
-    Circle(r) => print(f"Radius: {r}"),
-    Rect(w, h) => print(f"Area: {w*h}"),
-    Point => print("Point")
+    Shape::Circle(r)   => println "Radius: {r}",
+    Shape::Rect(w, h)  => println "Area: {w*h}",
+    Shape::Point       => println "Point"
 }
 ```
 
@@ -377,7 +377,7 @@ match opt {
     Some(ref x) => {
         // 'x' is a pointer to the value inside 'opt'
         // 'opt' is NOT moved/consumed here
-        print(x.field); 
+        println "{x.field}"; 
     },
     None => {}
 }

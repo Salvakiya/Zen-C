@@ -56,7 +56,7 @@ static void codegen_var_expr(ParserContext *ctx, ASTNode *node, FILE *out)
 
     if (node->resolved_type && strcmp(node->resolved_type, "unknown") == 0)
     {
-        if (node->var_ref.suggestion)
+        if (node->var_ref.suggestion && !ctx->silent_warnings)
         {
             char msg[256];
             sprintf(msg, "Undefined variable '%s'", node->var_ref.name);
@@ -289,7 +289,6 @@ void codegen_expression(ParserContext *ctx, ASTNode *node, FILE *out)
         else
         {
             fprintf(out, "(");
-            // Left side: Only move if NOT an assignment target
             int is_assignment =
                 (node->binary.op[strlen(node->binary.op) - 1] == '=' &&
                  strcmp(node->binary.op, "==") != 0 && strcmp(node->binary.op, "!=") != 0 &&

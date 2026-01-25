@@ -1345,8 +1345,10 @@ ASTNode *parse_for(ParserContext *ctx, Lexer *l)
 }
 
 char *process_printf_sugar(ParserContext *ctx, const char *content, int newline, const char *target,
-                           char ***used_syms, int *count)
+                           char ***used_syms, int *count, int check_symbols)
 {
+    int saved_silent = ctx->silent_warnings;
+    ctx->silent_warnings = !check_symbols;
     char *gen = xmalloc(8192);
     strcpy(gen, "({ ");
 
@@ -1447,7 +1449,7 @@ char *process_printf_sugar(ParserContext *ctx, const char *content, int newline,
         // Analyze usage & Type Check for to_string()
         char *final_expr = xstrdup(clean_expr);
 
-        // Use final_expr in usage analysis if needed, but mainly for symbol tracking
+        if (check_symbols)
         {
             Lexer lex;
             lexer_init(&lex, clean_expr); // Scan original for symbols
@@ -1483,6 +1485,7 @@ char *process_printf_sugar(ParserContext *ctx, const char *content, int newline,
         // Parse expression fully
         Lexer lex;
         lexer_init(&lex, clean_expr);
+
         ASTNode *expr_node = parse_expression(ctx, &lex);
 
         char *rw_expr = NULL;
@@ -1696,6 +1699,7 @@ char *process_printf_sugar(ParserContext *ctx, const char *content, int newline,
     strcat(gen, "0; })");
 
     free(s);
+    ctx->silent_warnings = saved_silent;
     return gen;
 }
 
@@ -1871,7 +1875,8 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
             int is_ln = (next_type == TOK_SEMICOLON);
             char **used_syms = NULL;
             int used_count = 0;
-            char *code = process_printf_sugar(ctx, inner, is_ln, "stdout", &used_syms, &used_count);
+            char *code =
+                process_printf_sugar(ctx, inner, is_ln, "stdout", &used_syms, &used_count, 1);
 
             if (next_type == TOK_SEMICOLON)
             {
@@ -2428,7 +2433,8 @@ ASTNode *parse_statement(ParserContext *ctx, Lexer *l)
 
             char **used_syms = NULL;
             int used_count = 0;
-            char *code = process_printf_sugar(ctx, inner, is_ln, target, &used_syms, &used_count);
+            char *code =
+                process_printf_sugar(ctx, inner, is_ln, target, &used_syms, &used_count, 1);
             free(inner);
 
             if (lexer_peek(l).type == TOK_SEMICOLON)
