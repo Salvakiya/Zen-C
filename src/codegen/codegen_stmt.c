@@ -697,6 +697,41 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node, FILE *out)
         fprintf(out, "{\n");
         char *prev_ret = g_current_func_ret_type;
         g_current_func_ret_type = node->func.ret_type;
+
+        // Initialize drop flags for arguments that implement Drop
+        for (int i = 0; i < node->func.arg_count; i++)
+        {
+            Type *arg_type = node->func.arg_types[i];
+            char *arg_name = node->func.param_names[i];
+            if (arg_type && arg_name)
+            {
+                // Check if type implements Drop
+                int has_drop = 0;
+                if (arg_type->kind == TYPE_STRUCT && arg_type->name)
+                {
+                    ASTNode *def = find_struct_def(ctx, arg_type->name);
+                    if (def && def->type == NODE_STRUCT && def->type_info &&
+                        def->type_info->traits.has_drop)
+                    {
+                        has_drop = 1;
+                    }
+                    else if (def)
+                    {
+                        // No drop needed
+                    }
+                    else
+                    {
+                        // No struct def found
+                    }
+                }
+
+                if (has_drop)
+                {
+                    fprintf(out, "    int __z_drop_flag_%s = 1;\n", arg_name);
+                }
+            }
+        }
+
         codegen_walker(ctx, node->func.body, out);
         for (int i = defer_count - 1; i >= 0; i--)
         {
