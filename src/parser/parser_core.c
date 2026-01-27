@@ -516,6 +516,20 @@ ASTNode *parse_program_nodes(ParserContext *ctx, Lexer *l)
             }
         }
 
+        if (s && s->type == NODE_STRUCT)
+        {
+            s->strct.is_export = attr_export;
+            s->strct.is_packed = attr_packed || s->strct.is_packed;
+            if (attr_align)
+            {
+                s->strct.align = attr_align;
+            }
+            if (attr_deprecated && s->strct.name)
+            {
+                register_deprecated_func(ctx, s->strct.name, deprecated_msg);
+            }
+        }
+
         if (s)
         {
             if (!h)

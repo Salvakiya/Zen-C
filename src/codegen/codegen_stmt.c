@@ -653,7 +653,7 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node, FILE *out)
             int has_attrs = node->func.constructor || node->func.destructor ||
                             node->func.noinline || node->func.unused || node->func.weak ||
                             node->func.cold || node->func.hot || node->func.noreturn ||
-                            node->func.pure || node->func.section;
+                            node->func.pure || node->func.section || node->func.is_export;
             if (has_attrs)
             {
                 fprintf(out, "__attribute__((");
@@ -675,6 +675,7 @@ void codegen_node_single(ParserContext *ctx, ASTNode *node, FILE *out)
                 EMIT_ATTR(node->func.hot, "hot");
                 EMIT_ATTR(node->func.noreturn, "noreturn");
                 EMIT_ATTR(node->func.pure, "pure");
+                EMIT_ATTR(node->func.is_export, "visibility(\"default\")");
                 if (node->func.section)
                 {
                     if (!first)

@@ -380,9 +380,13 @@ void emit_struct_defs(ParserContext *ctx, ASTNode *node, FILE *out)
             {
                 fprintf(out, " __attribute__((packed))");
             }
-            else if (node->strct.align)
+            if (node->strct.align)
             {
                 fprintf(out, " __attribute__((aligned(%d)))", node->strct.align);
+            }
+            if (node->strct.is_export)
+            {
+                fprintf(out, " __attribute__((visibility(\"default\")))");
             }
             fprintf(out, ";\n\n");
         }
