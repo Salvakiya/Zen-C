@@ -12,8 +12,8 @@ raw {
         return (uint64_t)(tv.tv_sec) * 1000 + (uint64_t)(tv.tv_usec) / 1000;
     }
 
-    static long _z_time_time(void) {
-        return (long)time(NULL);
+    static int64_t _z_time_time(void) {
+        return (int64_t)time(NULL);
     }
 }
 
@@ -21,7 +21,7 @@ extern fn srand(seed: U32);
 extern fn rand() -> int;
 extern fn usleep(micros: U32) -> int;
 extern fn _time_now_impl() -> U64;
-extern fn _z_time_time() -> long;
+extern fn _z_time_time() -> I64;
 
 struct Duration {
     millis: U64;

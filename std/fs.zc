@@ -14,7 +14,7 @@ include <unistd.h>
 include <stdlib.h>
 include <stdio.h>
 
-// TODO: restructure this tomorrow.
+// TODO: restructure this tomorrow (lol).
 raw {
     typedef struct DirEntry* DirEntryPtr;
     
@@ -105,8 +105,8 @@ extern fn _z_fs_fopen(path: char*, mode: char*) -> void*;
 extern fn _z_fs_fclose(stream: void*) -> int;
 extern fn _z_fs_fread(ptr: void*, size: usize, nmemb: usize, stream: void*) -> usize;
 extern fn _z_fs_fwrite(ptr: void*, size: usize, nmemb: usize, stream: void*) -> usize;
-extern fn _z_fs_fseek(stream: void*, offset: long, whence: int) -> int;
-extern fn _z_fs_ftell(stream: void*) -> long;
+extern fn _z_fs_fseek(stream: void*, offset: I64, whence: int) -> int;
+extern fn _z_fs_ftell(stream: void*) -> I64;
 extern fn _z_fs_opendir(name: char*) -> void*;
 extern fn _z_fs_closedir(dir: void*) -> int;
 
