@@ -5421,6 +5421,7 @@ ASTNode *parse_expr_prec(ParserContext *ctx, Lexer *l, Precedence min_prec)
                 // This gives a warning as "unused" but it's needed for the rewrite.
                 char *r_name =
                     resolve_struct_name_from_type(ctx, rhs->type_info, &is_rhs_ptr, &r_alloc);
+                (void)r_name;
                 if (r_alloc)
                 {
                     free(r_alloc);

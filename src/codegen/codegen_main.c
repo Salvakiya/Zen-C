@@ -616,7 +616,7 @@ void codegen_node(ParserContext *ctx, ASTNode *node, FILE *out)
             }
         }
 
-        emit_protos(merged_funcs, out);
+        emit_protos(ctx, merged_funcs, out);
 
         emit_impl_vtables(ctx, out);
 

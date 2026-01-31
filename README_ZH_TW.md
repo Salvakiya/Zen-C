@@ -493,8 +493,15 @@ for i in 0..<10 { ... }     // 左閉右開 (顯式)
 for i in 0..=10 { ... }     // 全閉 (0 到 10)
 for i in 0..10 step 2 { ... }
 
-// 迭代器 (Vec, Array, 或自定義 Iterable)
-for item in collection { ... }
+// 迭代器 (Vec 或自定義 Iterable)
+for item in vec { ... }
+
+// 直接迭代固定大小數組
+let arr: int[5] = [1, 2, 3, 4, 5];
+for val in arr {
+    // val 是 int
+    println "{val}";
+}
 
 // While 循環
 while x < 10 { ... }
@@ -606,7 +613,7 @@ Zen C 支持使用 `?` 前綴進行用戶輸入提示的簡寫。
 - `? "輸入年齡: " (age)`: 打印提示並掃描輸入到變量 `age` 中。
     - 格式說明符會根據變量類型自動推斷。
 
-```c
+```zc
 let age: int;
 ? "你多大了？ " (age);
 println "你 {age} 歲了。";
@@ -938,6 +945,7 @@ let re = regex! { ^[a-z]+$ };
 | `@host` | 函數 | CUDA: 主機函數 (`__host__`)。 |
 | `@comptime` | 函數 | 用於編譯時執行的輔助函數。 |
 | `@derive(...)` | 結構體 | 自動實現 Trait。支持 `Debug`, `Eq` (智能派生), `Copy`, `Clone`。 |
+| `@ctype("type")` | 函數參數 | 覆蓋參數生成的 C 類型。 |
 | `@<custom>` | 任意 | 將泛型屬性傳遞給 C (例如 `@flatten`, `@alias("name")`)。 |
 
 #### 自定義屬性

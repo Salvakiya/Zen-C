@@ -165,7 +165,7 @@ zc repl
 
 ### Environment Variables
 
-You can set `ZC_ROOT` to specify the location of the Standard Library (standard imports like `import "std/vector.zc"`). This allows you to run `zc` from any directory.
+You can set `ZC_ROOT` to specify the location of the Standard Library (standard imports like `import "std/vec.zc"`). This allows you to run `zc` from any directory.
 
 ```bash
 export ZC_ROOT=/path/to/Zen-C
@@ -494,8 +494,15 @@ for i in 0..<10 { ... }     // Exclusive (Explicit)
 for i in 0..=10 { ... }     // Inclusive (0 to 10)
 for i in 0..10 step 2 { ... }
 
-// Iterator (Vec, Array, or custom Iterable)
-for item in collection { ... }
+// Iterator (Vec or custom Iterable)
+for item in vec { ... }
+
+// Iterate over fixed-size arrays directly
+let arr: int[5] = [1, 2, 3, 4, 5];
+for val in arr {
+    // val is int
+    println "{val}";
+}
 
 // While
 while x < 10 { ... }
@@ -607,7 +614,7 @@ Zen C supports a shorthand for prompting user input using the `?` prefix.
 - `? "Enter age: " (age)`: Prints prompt and scans input into the variable `age`.
     - Format specifiers are automatically inferred based on variable type.
 
-```c
+```zc
 let age: int;
 ? "How old are you? " (age);
 println "You are {age} years old.";
@@ -939,6 +946,7 @@ Decorate functions and structs to modify compiler behavior.
 | `@host` | Fn | CUDA: Host function (`__host__`). |
 | `@comptime` | Fn | Helper function available for compile-time execution. |
 | `@derive(...)` | Struct | Auto-implement traits. Supports `Debug`, `Eq` (Smart Derive), `Copy`, `Clone`. |
+| `@ctype("type")` | Fn Param | Overrides generated C type for a parameter. |
 | `@<custom>` | Any | Passes generic attributes to C (e.g. `@flatten`, `@alias("name")`). |
 
 #### Custom Attributes

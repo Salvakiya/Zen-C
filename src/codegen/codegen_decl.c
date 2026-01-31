@@ -698,7 +698,7 @@ void emit_globals(ParserContext *ctx, ASTNode *node, FILE *out)
 }
 
 // Emit function prototypes
-void emit_protos(ASTNode *node, FILE *out)
+void emit_protos(ParserContext *ctx, ASTNode *node, FILE *out)
 {
     ASTNode *f = node;
     while (f)
@@ -721,7 +721,7 @@ void emit_protos(ASTNode *node, FILE *out)
             }
             else
             {
-                emit_func_signature(out, f, NULL);
+                emit_func_signature(ctx, out, f, NULL);
                 fprintf(out, ";\n");
             }
         }
@@ -799,7 +799,7 @@ void emit_protos(ASTNode *node, FILE *out)
                 }
                 else
                 {
-                    emit_func_signature(out, m, proto);
+                    emit_func_signature(ctx, out, m, proto);
                     fprintf(out, ";\n");
                 }
 

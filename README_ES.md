@@ -493,8 +493,15 @@ for i in 0..<10 { ... }     // Exclusivo (Explícito)
 for i in 0..=10 { ... }     // Inclusivo (0 al 10)
 for i in 0..10 step 2 { ... }
 
-// Iterador (Vec, Array, o Iterable personalizado)
-for item in coleccion { ... }
+// Iterador (Vec o Iterable personalizado)
+for item in vec { ... }
+
+// Iterar sobre arrays de tamaño fijo directamente
+let arr: int[5] = [1, 2, 3, 4, 5];
+for val in arr {
+    // val es int
+    println "{val}";
+}
 
 // While
 while x < 10 { ... }
@@ -507,6 +514,7 @@ externo: loop {
 // Repetir N veces
 for _ in 0..5 { ... }
 ```
+
 
 #### Control Avanzado
 ```zc
@@ -606,7 +614,7 @@ Zen C soporta una abreviatura para solicitar entrada al usuario usando el prefij
 - `? "Ingresa la edad: " (edad)`: Imprime el prompt y escanea la entrada en la variable `edad`.
     - Los especificadores de formato se infieren automáticamente según el tipo de variable.
 
-```c
+```zc
 let edad: int;
 ? "¿Cuántos años tienes? " (edad);
 println "Tienes {edad} años.";
@@ -938,6 +946,7 @@ Decora funciones y structs para modificar el comportamiento del compilador.
 | `@host` | Fn | CUDA: Función de host (`__host__`). |
 | `@comptime` | Fn | Función auxiliar disponible para ejecución en tiempo de compilación. |
 | `@derive(...)` | Struct | Implementa traits automáticamente. Soporta `Debug`, `Eq` (Derivación Inteligente), `Copy`, `Clone`. |
+| `@ctype("tipo")` | Parámetro Fn | Sobrescribe el tipo C generado para un parámetro. |
 | `@<custom>` | Cualquier | Pasa atributos genéricos a C (ej. `@flatten`, `@alias("nombre")`). |
 
 #### Atributos Personalizados
