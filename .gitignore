@@ -8,6 +8,7 @@ a.out
 *.dll
 *.dylib
 *.a
+*.obj
 .vscode/
 .idea/
 *.swp
@@ -17,9 +18,9 @@ compile_commands.json
 vgcore.*
 tests/**/*.o
 plugins/*.so
-.cache
-out/
-# Doxygen documentation
-docs/html/
-docs/latex/
-*.db
+
+build/
+tests/**/*.c
+_tmp_*
+
+src/compat/embed.h
