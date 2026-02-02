@@ -94,7 +94,7 @@ int main(int argc, char **argv) {
         }
         fprintf(out, "\"\n");
     }
-    fprintf(out, "\"\"\n");
+    fprintf(out, "\"\\n\"\n");
     fprintf(out, ";\n\n#endif\n\n");
 
     fclose(in);
