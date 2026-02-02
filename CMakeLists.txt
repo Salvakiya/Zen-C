@@ -46,8 +46,10 @@ include_directories(
 set(SRCS
     src/main.c
     src/parser/parser_core.c
+    src/parser/parser_decl.c
     src/parser/parser_expr.c
     src/parser/parser_stmt.c
+    src/parser/parser_struct.c
     src/parser/parser_type.c
     src/parser/parser_utils.c
     src/ast/ast.c
@@ -55,15 +57,18 @@ set(SRCS
     src/codegen/codegen_decl.c
     src/codegen/codegen_main.c
     src/codegen/codegen_utils.c
+    src/codegen/codegen_stmt.c
     src/utils/utils.c
     src/lexer/token.c
     src/analysis/typecheck.c
+    src/lsp/cJSON.c
     src/lsp/json_rpc.c
     src/lsp/lsp_main.c
+    src/lsp/lsp_project.c
     src/lsp/lsp_analysis.c
     src/lsp/lsp_index.c
     src/zen/zen_facts.c
-    src/repl/repl.c
+    #src/repl/repl.c //temp remove because noop on windows compatability
     src/plugins/plugin_manager.c
 )
 
