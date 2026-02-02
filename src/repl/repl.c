@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <termios.h>
+//#include <termios.h>
 //#include <unistd.h>
 #include "compat/compat.h"
 #include <ctype.h>
@@ -78,6 +78,7 @@ static void repl_error_callback(void *data, Token t, const char *msg)
 static struct termios orig_termios;
 static int raw_mode_enabled = 0;
 
+#ifdef ZC_ON_POSIX
 static void disable_raw_mode()
 {
     if (raw_mode_enabled)
@@ -104,6 +105,16 @@ static void enable_raw_mode()
         raw_mode_enabled = 1;
     }
 }
+#else
+static void disable_raw_mode()
+{
+    // No-op on Windows
+}
+static void enable_raw_mode()
+{
+    // No-op on Windows
+}
+#endif
 
 static const char *KEYWORDS[] = {
     "fn",       "struct",  "var",   "let",   "def",    "const",    "return",  "if",
@@ -1711,7 +1722,7 @@ void run_repl(const char *self_path)
 
                         // Execute
                         char tmp_path[256];
-                        snprintf(tmp_path, sizeof(tmp_path), "/tmp/zen_repl_vars_%d.zc", getpid());
+                        snprintf(tmp_path, sizeof(tmp_path), "/tmp/zen_repl_vars_%d.zc", zc_getpid());
                         FILE *f = fopen(tmp_path, "w");
                         if (f)
                         {

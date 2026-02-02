@@ -32,22 +32,33 @@ extern "C" {
 
 /* --- Platform Detection & Base Headers --- */
 #if defined(_WIN32) || defined (_WIN64)
-#   define ZC_WINDOWS 1
+#   define ZC_ON_WINDOWS
 #   define WIN32_LEAN_AND_MEAN
 #   define NOMINMAX
 #   include <windows.h>
+#   include <winnetwk.h>
 #   include <time.h>
 #   include <fcntl.h>
+
+    typedef HMODULE zc_dlhandle;
 #else
-#   define ZC_WINDOWS 0
+#   define ZC_ON_POSIX
 #   include <unistd.h>
 #   include <pthread.h>
 #   include <semaphore.h>
 #   include <sys/stat.h>
 #   include <time.h>
+
+#   include <dlfcn.h>
+#   include <termios.h>
+
+    typedef void* zc_dlhandle;
 #endif
 
-int zc_get_pid();
+int zc_getpid();
+zc_dlhandle zc_dlopen(const char *path);
+void *zc_dlsym(zc_dlhandle handle, const char *symbol);
+void zc_dlclose(zc_dlhandle handle);
 
 
 #ifdef __cplusplus
@@ -60,12 +71,46 @@ int zc_get_pid();
 #ifdef ZC_COMPAT_IMPLEMENTATION
 #undef ZC_COMPAT_IMPLEMENTATION
 
-int zc_get_pid(void){
-#if ZC_WINDOWS
+int zc_getpid(void){
+#ifdef ZC_ON_WINDOWS
     return (int)GetCurrentProcessId();
 #else
     return (int)getpid();
 #endif
 }
+
+zc_dlhandle zc_dlopen(const char *path)
+{
+#ifdef ZC_ON_WINDOWS
+    return LoadLibraryA(path);
+#else
+    return dlopen(path, RTLD_LAZY);
+#endif
+}
+
+void zc_dlclose(zc_dlhandle handle)
+{
+#ifdef ZC_ON_WINDOWS
+    if (handle)
+    {
+        FreeLibrary(handle);
+    }
+#else
+    if (handle)
+    {
+        dlclose(handle);
+    }
+#endif
+}
+
+void *zc_dlsym(zc_dlhandle handle, const char *symbol)
+{
+#ifdef ZC_ON_WINDOWS
+    return (void *)GetProcAddress(handle, symbol);
+#else
+    return dlsym(handle, symbol);
+#endif
+}
+
 
 #endif // ZC_COMPAT_IMPLEMENTATION

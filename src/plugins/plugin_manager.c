@@ -1,6 +1,7 @@
 
 #include "plugin_manager.h"
-#include <dlfcn.h>
+//#include <dlfcn.h>
+#include "compat/compat.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,7 +10,7 @@
 typedef struct PluginNode
 {
     ZPlugin *plugin;
-    void *handle; // dlopen handle (NULL for built-ins).
+    zc_dlhandle handle; // dlopen handle (NULL for built-ins).
     struct PluginNode *next;
 } PluginNode;
 
@@ -41,17 +42,17 @@ void zptr_register_plugin(ZPlugin *plugin)
 
 ZPlugin *zptr_load_plugin(const char *path)
 {
-    void *handle = dlopen(path, RTLD_LAZY);
+    zc_dlhandle handle = zc_dlopen(path);
     if (!handle)
     {
         return NULL;
     }
 
-    ZPluginInitFn init_fn = (ZPluginInitFn)dlsym(handle, "z_plugin_init");
+    ZPluginInitFn init_fn = (ZPluginInitFn)zc_dlsym(handle, "z_plugin_init");
     if (!init_fn)
     {
         fprintf(stderr, "Plugin '%s' missing 'z_plugin_init' symbol\n", path);
-        dlclose(handle);
+        zc_dlclose(handle);
         return NULL;
     }
 
@@ -59,7 +60,7 @@ ZPlugin *zptr_load_plugin(const char *path)
     if (!plugin)
     {
         fprintf(stderr, "Plugin '%s' init returned NULL\n", path);
-        dlclose(handle);
+        zc_dlclose(handle);
         return NULL;
     }
 
@@ -95,7 +96,7 @@ void zptr_plugin_mgr_cleanup(void)
         PluginNode *next = curr->next;
         if (curr->handle)
         {
-            dlclose(curr->handle);
+            zc_dlclose(curr->handle);
         }
         free(curr);
         curr = next;
