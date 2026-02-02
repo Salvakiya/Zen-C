@@ -10,6 +10,7 @@ a.out
 *.dylib
 *.a
 *.obj
+*.log
 .vscode/
 .idea/
 *.swp
