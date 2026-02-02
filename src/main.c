@@ -7,7 +7,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+//#include <unistd.h>
+#define ZC_COMPAT_IMPLEMENTATION
+#include "compat/compat.h"
 
 // Forward decl for LSP
 int lsp_main(int argc, char **argv);
