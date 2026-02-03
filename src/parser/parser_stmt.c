@@ -3348,7 +3348,6 @@ char *run_comptime_block(ParserContext *ctx, Lexer *l)
 
     char filename[256];
     generate_comptime_filename(filename, sizeof(filename));
-    fprintf(stderr, COLOR_YELLOW "Comptime: Generating temp file %s\n" COLOR_RESET,filename);
     FILE *f = fopen(filename, "w");
     if (!f)
     {
