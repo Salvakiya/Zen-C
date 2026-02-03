@@ -57,7 +57,7 @@ void print_usage()
 
 int main(int argc, char **argv)
 {
-    char* _executable_path = zc_path_get_executable_path();//techncially should be free'd?
+    char* _executable_path = zc_path_get_executable_path();
     char* _executable_dir = (char*)malloc(strlen(_executable_path) + 1);
     zc_path_get_parent(_executable_path, _executable_dir, strlen(_executable_path) + 1);
     fprintf(stderr, "Zen C Compiler location %s\n", _executable_dir);
