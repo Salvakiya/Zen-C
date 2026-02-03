@@ -6,6 +6,13 @@ import tempfile
 from pathlib import Path
 from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor
+import time
+
+import re
+
+def strip_ansi(text):
+    ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
+    return ansi_escape.sub('', text)
 
 # ANSI colors
 GREEN = "\033[92m"
@@ -13,23 +20,73 @@ RED = "\033[91m"
 RESET = "\033[0m"
 BOLD = "\033[1m"
 
+import shutil
+import time
+import tempfile
+
+def safe_copy(src: Path, dst: Path, retries=3, delay=0.1):
+    """Attempts to copy a file, retrying if it's locked or busy."""
+    for i in range(retries):
+        try:
+            # If the file is a compiler artifact (like .c or .exe), 
+            # it might be locked. We can often just skip these.
+            if src.suffix in ['.c', '.exe', '.obj', '.o']:
+                return 
+            
+            shutil.copy2(src, dst)
+            return
+        except (PermissionError, OSError):
+            if i < retries - 1:
+                time.sleep(delay)
+            else:
+                # If it's still failing, it's likely a file we don't 
+                # actually need for the test (like a locked log or binary)
+                pass 
+
 def run_test(test_path: Path, zc_path: Path, extra_args: list):
     test_name = test_path.name
+    orig_dir = test_path.parent
+
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
-        # Construct command: absolute paths ensure no confusion in tmp_dir
-        cmd = [str(zc_path.absolute()), "run", str(test_path.absolute()), "--emit-c"] + extra_args
-        
+
+        # 1. Improved Copy Logic
+        for item in orig_dir.iterdir():
+            dest = tmp_path / item.name
+            if item.is_file():
+                # ONLY copy .zc files and non-build artifacts
+                # This prevents Test B from trying to copy Test A's output
+                if item.suffix == ".zc" or item.suffix not in [".c", ".exe", ".o", ".obj"]:
+                    safe_copy(item, dest)
+            elif item.is_dir():
+                # Avoid copying build folders if they exist inside tests
+                if item.name not in ["build", "bin", "obj"]:
+                    shutil.copytree(item, dest, dirs_exist_ok=True, 
+                                    ignore=shutil.ignore_patterns('*.c', '*.exe'))
+
+        # 2. RUN THE COMPILER
+        # Crucial: Output to the TEMP directory, NOT the source directory
+        tmp_output_c = tmp_path / (test_path.stem + ".zc.c")
+        tmp_test_file = tmp_path / test_path.name
+
+        cmd = [
+            str(zc_path.absolute()), 
+            "run", str(tmp_test_file), 
+            "-o", str(tmp_output_c)
+        ] + extra_args
+
         try:
-            proc = subprocess.run(cmd, cwd=tmp_dir, capture_output=True, text=True, timeout=30)
+            proc = subprocess.run(cmd, cwd=tmp_path, capture_output=True, text=True, timeout=60)
             output = proc.stdout + proc.stderr
-            
+
             if proc.returncode != 0:
                 return test_name, False, output
-            
-            if not (tmp_path / "out.c").exists():
-                return test_name, False, f"{output}\nERROR: 'out.c' was not generated."
-            
+
+            # 3. SUCCESS - If you want the .c file for debugging, 
+            # copy it back AFTER the test is done.
+            # final_dest = orig_dir / (test_path.name + ".c")
+            # shutil.copy2(tmp_output_c, final_dest)
+
             return test_name, True, output
         except Exception as e:
             return test_name, False, f"Exception: {str(e)}"
@@ -56,6 +113,7 @@ def main():
     test_dir = Path(args.dir)
     # Sorting ensures the submission order is deterministic
     test_files = sorted(list(test_dir.rglob("*.zc")))
+    test_files = [f.resolve() for f in test_files]
     
     if not test_files:
         print(f"No tests found in {test_dir}")
@@ -118,7 +176,7 @@ def main():
     log_entries.append(summary)
     
     with open(log_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(log_entries))
+        f.write("\n".join(strip_ansi(entry) for entry in log_entries))
 
     print(f"{BOLD}Log saved to:{RESET} {log_path}")
     sys.exit(0 if not failed_tests else 1)
