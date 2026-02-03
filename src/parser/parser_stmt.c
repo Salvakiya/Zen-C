@@ -17,17 +17,8 @@ char *curr_func_ret = NULL;
 char *run_comptime_block(ParserContext *ctx, Lexer *l);
 extern char *g_current_filename;
 
-
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <stdbool.h>
 
-// Assuming these are your internal wrappers
-extern void zc_normalize_path(char *path);
-extern int zc_access(const char *path, int mode);
-extern char *zc_strdup(const char *s);
 
 /**
  * @brief Searches for a file in the working directory and in paths specified
@@ -92,6 +83,28 @@ static bool find_path(const char *fn, char **out_path) {
     return found;
 }
 
+/**
+ * @brief Generates a unique temporary filename for comptime code.
+ *
+ * The filename is based on the process ID, a timestamp, and a unique counter
+ * to avoid collisions in multi-threaded scenarios.
+ *
+ * @param buf Buffer to store the generated filename.
+ * @param buf_size Size of the buffer.
+ */
+void generate_comptime_filename(char *buf, size_t buf_size) {
+    static _Atomic int counter = 0; // Thread-safe counter
+    
+    // Get a high-resolution timestamp if possible, otherwise use time()
+    time_t now = time(NULL);
+    int pid = (int)zc_getpid();
+    int unique_id = counter++;
+
+    // Format: _tmp_zc_comp_PID_TIMESTAMP_ID.c
+    // Using a specific prefix makes it easy to 'git ignore' or clean up later.
+    snprintf(buf, buf_size, "_tmp_zc_comp_%d_%lld_%d.c", 
+             pid, (long long)now, unique_id);
+}
 
 /**
  * @brief Auto-imports std/slice.zc if not already imported.
@@ -3395,10 +3408,9 @@ char *run_comptime_block(ParserContext *ctx, Lexer *l)
 
     free(wrapped_code);
 
-    char filename[64];
-    char tmpname[L_tmpnam];
-    tmpnam(tmpname);
-    sprintf(filename, "_tmp_comptime_%s.c", tmpname);
+    char filename[256];
+    generate_comptime_filename(filename, sizeof(filename));
+    fprintf(stderr, COLOR_YELLOW "Comptime: Generating temp file %s\n" COLOR_RESET,filename);
     FILE *f = fopen(filename, "w");
     if (!f)
     {
@@ -3495,14 +3507,12 @@ char *run_comptime_block(ParserContext *ctx, Lexer *l)
 
     char cmd[4096];
     char bin[1024];
-    if (z_is_windows())
-    {
+
+#ifdef ZC_ON_WINDOWS
         sprintf(bin, "%s.exe", filename);
-    }
-    else
-    {
+#else
         sprintf(bin, "%s.bin", filename);
-    }
+#endif
     sprintf(cmd, "%s %s -o %s", g_config.cc, filename, bin);
     if (!g_config.verbose)
     {
@@ -3518,14 +3528,11 @@ char *run_comptime_block(ParserContext *ctx, Lexer *l)
     sprintf(out_file, "%s.out", filename);
 
     // Platform-neutral execution
-    if (z_is_windows())
-    {
+#ifdef ZC_ON_WINDOWS
         sprintf(cmd, "%s > %s", bin, out_file);
-    }
-    else
-    {
+#else
         sprintf(cmd, "./%s > %s", bin, out_file);
-    }
+#endif
 
     if (system(cmd) != 0)
     {
