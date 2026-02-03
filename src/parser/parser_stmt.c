@@ -3109,7 +3109,7 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l)
     int is_explicit_relative = (fn[0] == '.' && (fn[1] == ZC_PATHSEP || (fn[1] == '.' && fn[2] == ZC_PATHSEP)));
 
     // Try to resolve relative to current file if not absolute
-    if (fn[0] != ZC_PATHSEP)
+    if (!zc_path_is_absolute(fn))
     {
         char *current_dir = xstrdup(g_current_filename);
         char *last_slash = strrchr(current_dir, ZC_PATHSEP);
