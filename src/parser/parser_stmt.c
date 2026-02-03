@@ -3125,7 +3125,7 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l)
             // Clean up ./ prefix for cleaner path construction if we want
             // but keeping it is fine too, /path/to/./file works.
 
-            snprintf(resolved_path, sizeof(resolved_path), "%s/%s", current_dir, leaf);
+            snprintf(resolved_path, sizeof(resolved_path), "%s%c%s", current_dir, ZC_PATHSEP, leaf);
 
             // If it's an explicit relative path, OR if the file exists at this relative location
             if (is_explicit_relative || zc_access(resolved_path, ZC_R_OK) == 0)
