@@ -1202,7 +1202,7 @@ ASTNode *parse_embed(ParserContext *ctx, Lexer *l)
     }
 
     char *embedpath = NULL;
-    if (zc_find_path(fn, &embedpath))
+    if (zc_path_find(fn, &embedpath))
     {
         snprintf(fn, sizeof(fn), "%s", embedpath);
         free(embedpath);

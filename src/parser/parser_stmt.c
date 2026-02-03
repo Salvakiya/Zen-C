@@ -64,7 +64,7 @@ static void auto_import_std_slice(ParserContext *ctx)
 
     // Try to find and import std/slice.zc
     char* resolved_path = NULL;
-    if (zc_find_path("std/slice.zc", &resolved_path))
+    if (zc_path_find("std/slice.zc", &resolved_path))
     {
         // Found in working directory or ZC_LIBRARY_PATH
         // Handled below
@@ -2978,7 +2978,7 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l)
         strncpy(plugin_name, plugin_tok.start + 1, name_len);
         plugin_name[name_len] = '\0';
 
-        zc_normalize_path(plugin_name);
+        zc_path_normalize(plugin_name);
 
         if (plugin_name[0] == '.' &&
             (plugin_name[1] == ZC_PATHSEP || (plugin_name[1] == '.' && plugin_name[2] == ZC_PATHSEP)))
@@ -3102,7 +3102,7 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l)
     strncpy(fn, t.start + 1, ln);
     fn[ln] = 0;
 
-    zc_normalize_path(fn);
+    zc_path_normalize(fn);
 
     // Resolve paths relative to current file
     char resolved_path[1024];
@@ -3142,7 +3142,7 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l)
     {
         char *resolved = NULL;
 
-        if (zc_find_path(fn, &resolved)) {
+        if (zc_path_find(fn, &resolved)) {
             free(fn); 
             fn = resolved; // Update your working pointer to the new path
         } else {

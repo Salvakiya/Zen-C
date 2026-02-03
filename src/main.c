@@ -57,29 +57,33 @@ void print_usage()
 
 int main(int argc, char **argv)
 {
-    char* _executable_path = zc_get_executable_path();//techncially should be free'd?
+    char* _executable_path = zc_path_get_executable_path();//techncially should be free'd?
+    char* _executable_dir = (char*)malloc(strlen(_executable_path) + 1);
+    zc_path_get_parent(_executable_path, _executable_dir, strlen(_executable_path) + 1);
+    fprintf(stderr, "Zen C Compiler location %s\n", _executable_dir);
 #ifdef ZC_ON_WINDOWS
     const char _lib_path_postfix[] = "./;C:/Zen-C";//what should the defaults be?
-    size_t newlen = strlen(_executable_path) + strlen(_lib_path_postfix) + 2;
+    size_t newlen = strlen(_executable_dir) + strlen(_lib_path_postfix) + 2;
     char *lib_paths = (char*)malloc(newlen);
     if (lib_paths)
     {
-        snprintf(lib_paths, newlen, "%s;%s", _executable_path, _lib_path_postfix);
+        snprintf(lib_paths, newlen, "%s;%s", _executable_dir, _lib_path_postfix);
         zc_setenv("ZC_LIBRARY_PATHS", lib_paths, 0);
         free(lib_paths);
     }
 #else
     const char _lib_path_postfix[] = "./:/usr/local/share/zenc:/usr/share/zenc";
-    size_t newlen = strlen(_executable_path) + strlen(_lib_path_postfix) + 2;
+    size_t newlen = strlen(_executable_dir) + strlen(_lib_path_postfix) + 2;
     char *lib_paths = (char*)malloc(newlen);
     if (lib_paths)
     {
-        snprintf(lib_paths, newlen, "%s:%s", _executable_path, _lib_path_postfix);
+        snprintf(lib_paths, newlen, "%s:%s", _executable_dir, _lib_path_postfix);
         zc_setenv("ZC_LIBRARY_PATHS", lib_paths, 0);
         free(lib_paths);
     }
 #endif
     free(_executable_path);
+    free(_executable_dir);
 
 
     memset(&g_config, 0, sizeof(g_config));

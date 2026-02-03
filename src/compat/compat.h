@@ -138,18 +138,38 @@ int    zc_mkdir(const char* path, int mode);
 int    zc_access(const char* path, int mode);
 int    zc_unlink(const char* path);
 char*  zc_realpath(const char* path, char *resolved_path); // Caller must free()
-char*  zc_get_executable_path(void);                       // Caller must free()
 bool   zc_is_dir(const char* path);
 int    zc_isatty(int fd);
 FILE*  zc_popen(const char* command, const char* type);
 int    zc_pclose(FILE* stream);
-char** zc_split_paths(const char* paths); // Caller must free array and strings
-void   zc_free_split_paths(char** paths);
-void   zc_normalize_path(char *path);
-bool   zc_find_path(const char *fn, char **out_path);
 char*  zc_getcwd(char *buf, size_t size);
 
-bool zc_is_path_absolute(const char* path);
+
+//char*  zc_get_executable_path(void);   
+//char** zc_split_paths(const char* paths); // Caller must free array and strings
+//void   zc_free_split_paths(char** paths);
+//void   zc_normalize_path(char *path);
+//void   zc_get_parent_path(const char* path, char* parent_path, size_t buf_size);
+//bool   zc_is_path_absolute(const char* path);
+//bool   zc_find_path(const char *fn, char **out_path);
+
+char* zc_path_get_executable_path(void);
+//char* zc_path_get_executable_dir(void); //not implemented yet
+char** zc_path_splits(const char* paths);
+void zc_path_free_splits(char** paths);
+void zc_path_get_parent(const char* path, char* parent_path, size_t buf_size);
+void zc_path_get_basename(const char* path, char* basename, size_t buf_size);
+bool zc_path_is_absolute(const char* path);
+bool zc_path_find(const char* filename, char** out_path);
+
+void zc_path_normalize(char *path);
+char* zc_path_resolve_alloc(const char* path);
+char* zc_path_join_alloc(const char* base, const char* suffix);
+//static void _internal_path_collapse(char* path);
+
+
+//obsolete
+//void zc_path_normalize_inplace(char* path);
 
 ZCDir *zc_opendir(const char *path);
 const ZCDirEnt *zc_readdir(ZCDir *dir);
@@ -363,21 +383,46 @@ int zc_isatty(int fd) {
 #endif
 }
 
-char* zc_get_executable_path(void) {
+char* zc_path_get_executable_path(void) {
 #ifdef ZC_ON_WINDOWS
-    wchar_t w[MAX_PATH];
-    if (GetModuleFileNameW(NULL, w, MAX_PATH) == 0) return NULL;
+    // Use a large buffer to handle long paths (\\?\ prefix)
+    wchar_t w[32768]; 
+    DWORD len = GetModuleFileNameW(NULL, w, 32768);
+    if (len == 0 || len == 32768) return NULL;
+    
+    // zc_internal_from_w returns a malloc'd UTF-8 string
     return zc_internal_from_w(w);
+
 #elif defined(__APPLE__)
-    char p[1024]; uint32_t s = sizeof(p);
-    return (_NSGetExecutablePath(p, &s) == 0) ? realpath(p, NULL) : NULL;
-#else
-    char p[1024]; ssize_t l = readlink("/proc/self/exe", p, sizeof(p)-1);
-    if (l == -1) return NULL; p[l] = '\0'; return strdup(p);
+    char path[4096];
+    uint32_t size = sizeof(path);
+    if (_NSGetExecutablePath(path, &size) != 0) {
+        // If 4096 wasn't enough, size is now updated to what's needed
+        char* long_path = (char*)malloc(size);
+        if (!long_path) return NULL;
+        if (_NSGetExecutablePath(long_path, &size) != 0) {
+            free(long_path);
+            return NULL;
+        }
+        char* resolved = realpath(long_path, NULL);
+        free(long_path);
+        return resolved;
+    }
+    return realpath(path, NULL);
+
+#else // Linux / POSIX
+    char path[4096];
+    // readlink does not null-terminate!
+    ssize_t len = readlink("/proc/self/exe", path, sizeof(path) - 1);
+    if (len == -1) return NULL;
+    path[len] = '\0';
+    
+    // Use strdup to ensure the returned pointer is consistently free-able
+    return strdup(path);
 #endif
 }
 
-char ** zc_split_paths(const char* paths) {
+char ** zc_path_splits(const char* paths) {
     if (!paths) return NULL;
 
     // Count number of paths
@@ -422,7 +467,7 @@ char ** zc_split_paths(const char* paths) {
     return result;
 }
 
-void zc_free_split_paths(char** paths) {
+void zc_path_free_splits(char** paths) {
     if (!paths) return;
     char** p = paths;
     while (*p) {
@@ -430,6 +475,64 @@ void zc_free_split_paths(char** paths) {
         p++;
     }
     free(paths);
+}
+
+void zc_path_get_parent(const char* path, char* parent_path, size_t buf_size) {
+    if (!path || !parent_path || buf_size == 0) return;
+
+    // Default to empty string
+    parent_path[0] = '\0';
+
+    size_t len = strlen(path);
+    if (len == 0) return;
+
+    // 1. Trim trailing separators (e.g., "home/user//" -> "home/user")
+    while (len > 0 && (path[len - 1] == ZC_POSIX_PATHSEP || path[len - 1] == ZC_WINDOWS_PATHSEP)) {
+        len--;
+    }
+
+    // 2. Find the last separator using size_t
+    // We use a found flag to avoid initializing 'last_sep_idx' to a magic number
+    size_t last_sep_idx = 0;
+    bool found = false;
+
+    // Start searching from the end
+    for (size_t i = len; i > 0; i--) {
+        size_t curr = i - 1;
+        if (path[curr] == ZC_POSIX_PATHSEP || path[curr] == ZC_WINDOWS_PATHSEP) {
+            last_sep_idx = curr;
+            found = true;
+            break;
+        }
+    }
+
+    // 3. Robust Logic for results
+    if (!found) {
+        // No separator left (e.g., "file.txt") -> return "."
+        snprintf(parent_path, buf_size, ".");
+    } 
+    else if (last_sep_idx == 0) {
+        // Parent is root (e.g., "/bin" -> "/")
+        snprintf(parent_path, buf_size, "%c", path[0]);
+    }
+#ifdef ZC_ON_WINDOWS
+    // Handle Windows Drive Roots (e.g., "C:\Windows" -> "C:\")
+    else if (last_sep_idx == 2 && path[1] == ':') {
+        size_t to_copy = (last_sep_idx + 1 < buf_size) ? last_sep_idx + 1 : buf_size - 1;
+        memcpy(parent_path, path, to_copy);
+        parent_path[to_copy] = '\0';
+    }
+    // Handle UNC paths (e.g., "\\server\share" -> "\\server")
+    else if (len >= 2 && path[0] == '\\' && path[1] == '\\' && last_sep_idx == 1) {
+        snprintf(parent_path, buf_size, "\\\\");
+    }
+#endif
+    else {
+        // Normal case (e.g., "/home/user" -> "/home")
+        size_t to_copy = (last_sep_idx < buf_size) ? last_sep_idx : buf_size - 1;
+        memcpy(parent_path, path, to_copy);
+        parent_path[to_copy] = '\0';
+    }
 }
 
 // void zc_normalize_path(char *path) {
@@ -445,74 +548,254 @@ void zc_free_split_paths(char** paths) {
 // }
 
 
-void zc_normalize_path(char *path) {
-    if (!path || !*path) return;
+/**
+    OBSOLETE
+ */
+// void zc_path_normalize_inplace(char *path) {
+//     if (!path || !*path) return;
 
-    // 1. Uniform Slashes
+//     // 1. Uniform Slashes
+//     for (char *p = path; *p; p++) if (*p == ZC_WINDOWS_PATHSEP) *p = ZC_POSIX_PATHSEP;
+
+//     char *src = path;
+//     char *dst = path;
+//     char *base = path; // The point where we stop backtracking
+
+//     // 2. Handle Root/Prefix
+// #ifdef _WIN32
+//     if (src[0] && src[1] == ':') { // "C:\"
+//         *dst++ = *src++;
+//         *dst++ = *src++;
+//         base = dst; 
+//         if (*src == ZC_POSIX_PATHSEP) { *dst++ = *src++; base = dst; }
+//     } else if (src[0] == ZC_POSIX_PATHSEP) { // "\"
+//         *dst++ = *src++;
+//         base = dst;
+//     }
+// #else
+//     if (src[0] == ZC_POSIX_PATHSEP) { // "/"
+//         *dst++ = *src++;
+//         base = dst;
+//     }
+// #endif
+
+//     // 3. Process segments
+//     while (*src) {
+//         if (*src == ZC_POSIX_PATHSEP) { src++; continue; } // Skip redundant slashes
+
+//         char *seg_start = src;
+//         while (*src && *src != ZC_POSIX_PATHSEP) src++;
+//         size_t len = src - seg_start;
+
+//         if (len == 1 && seg_start[0] == '.') {
+//             continue; // Skip "."
+//         } 
+        
+//         if (len == 2 && seg_start[0] == '.' && seg_start[1] == '.') {
+//             // Backtrack logic
+//             if (dst > base) {
+//                 // We have a folder to pop
+//                 dst--; // Move before the last separator
+//                 while (dst > base && *(dst - 1) != ZC_POSIX_PATHSEP) dst--;
+//             } else if (base == path) {
+//                 // Relative path and we are at the very start, 
+//                 // so we must keep the ".."
+//                 if (dst > path) *dst++ = ZC_POSIX_PATHSEP;
+//                 *dst++ = '.'; *dst++ = '.';
+//             }
+//             // If it's absolute (base > path) and we are at base, 
+//             // we just ignore ".." because you can't go above root.
+//             continue;
+//         }
+
+//         // Normal segment
+//         if (dst > path && *(dst - 1) != ZC_POSIX_PATHSEP) *dst++ = ZC_POSIX_PATHSEP;
+//         memmove(dst, seg_start, len);
+//         dst += len;
+//     }
+
+//     // 4. Final touch
+//     if (dst == path) {
+//         *dst++ = '.'; // Empty relative path becomes "."
+//     }
+//     *dst = '\0';
+// }
+
+/**
+* @brief Normalize a path string in place.
+* 
+* This function modifies the input path string to:
+* 1. Convert all backslashes to forward slashes.
+* 2. Remove redundant slashes.
+* 3. Trim trailing slashes (except for root).
+* 
+* @param path The path string to normalize.
+*/
+void zc_path_normalize(char *path) {
+    if (!path || !*path) return;
+    
+    char *src = path, *dst = path;
+    
+    // Fix slashes first
     for (char *p = path; *p; p++) if (*p == ZC_WINDOWS_PATHSEP) *p = ZC_POSIX_PATHSEP;
 
+    while (*src) {
+        *dst = *src;
+        // Skip redundant slashes, but allow leading // for UNC if needed
+        if (*src == ZC_POSIX_PATHSEP && src != path && *(src + 1) == ZC_POSIX_PATHSEP) {
+            src++;
+            continue;
+        }
+        src++;
+        dst++;
+    }
+    *dst = '\0';
+
+    // Trim trailing slash (unless it's the root "/")
+    size_t len = dst - path;
+    if (len > 1 && path[len - 1] == ZC_POSIX_PATHSEP) {
+        path[len - 1] = '\0';
+    }
+}
+
+/**
+ * @brief Internal helper to collapse a path by resolving "." and ".." segments.
+ *
+ * This function modifies the input path string in place, removing redundant
+ * segments and backtracking as necessary.
+ *
+ * @param path The path string to collapse.
+ */
+static void _internal_path_collapse(char* path) {
     char *src = path;
     char *dst = path;
-    char *base = path; // The point where we stop backtracking
+    char *base = path;
 
-    // 2. Handle Root/Prefix
-#ifdef _WIN32
-    if (src[0] && src[1] == ':') { // "C:\"
-        *dst++ = *src++;
-        *dst++ = *src++;
-        base = dst; 
-        if (*src == ZC_POSIX_PATHSEP) { *dst++ = *src++; base = dst; }
-    } else if (src[0] == ZC_POSIX_PATHSEP) { // "\"
-        *dst++ = *src++;
+    // 1. Identify the logical base (don't backtrack past the root)
+#ifdef ZC_ON_WINDOWS
+    if (src[0] && src[1] == ':') {
+        dst += 2; src += 2;
+        if (*src == '/') dst++, src++; 
+        base = dst;
+    } else if (src[0] == '/') {
+        dst++; src++;
         base = dst;
     }
 #else
-    if (src[0] == ZC_POSIX_PATHSEP) { // "/"
-        *dst++ = *src++;
+    if (src[0] == '/') {
+        dst++; src++;
         base = dst;
     }
 #endif
 
-    // 3. Process segments
+    // 2. The Backtracking Logic (The meat of your old function)
     while (*src) {
-        if (*src == ZC_POSIX_PATHSEP) { src++; continue; } // Skip redundant slashes
+        if (*src == '/') { src++; continue; }
 
         char *seg_start = src;
-        while (*src && *src != ZC_POSIX_PATHSEP) src++;
+        while (*src && *src != '/') src++;
         size_t len = src - seg_start;
 
-        if (len == 1 && seg_start[0] == '.') {
-            continue; // Skip "."
-        } 
+        if (len == 1 && seg_start[0] == '.') continue;
         
         if (len == 2 && seg_start[0] == '.' && seg_start[1] == '.') {
-            // Backtrack logic
             if (dst > base) {
-                // We have a folder to pop
-                dst--; // Move before the last separator
-                while (dst > base && *(dst - 1) != ZC_POSIX_PATHSEP) dst--;
+                dst--; 
+                while (dst > base && *(dst - 1) != '/') dst--;
             } else if (base == path) {
-                // Relative path and we are at the very start, 
-                // so we must keep the ".."
-                if (dst > path) *dst++ = ZC_POSIX_PATHSEP;
+                if (dst > path) *dst++ = '/';
                 *dst++ = '.'; *dst++ = '.';
             }
-            // If it's absolute (base > path) and we are at base, 
-            // we just ignore ".." because you can't go above root.
             continue;
         }
 
-        // Normal segment
-        if (dst > path && *(dst - 1) != ZC_POSIX_PATHSEP) *dst++ = ZC_POSIX_PATHSEP;
+        if (dst > path && *(dst - 1) != '/') *dst++ = '/';
         memmove(dst, seg_start, len);
         dst += len;
     }
 
-    // 4. Final touch
-    if (dst == path) {
-        *dst++ = '.'; // Empty relative path becomes "."
-    }
+    if (dst == path) *dst++ = '.';
     *dst = '\0';
+}
+
+
+/**
+ * @brief Resolves a given path to its absolute form, handling relative segments.
+ *
+ * @param path The input path to resolve.
+ * @return A newly allocated string containing the resolved absolute path.
+ *         The caller is responsible for freeing this string.
+ */
+char* zc_path_resolve_alloc(const char* path) {
+    if (!path || !*path) return NULL;
+    char* joined;
+    
+    if (!zc_path_is_absolute(path)) {
+        char * cwd = zc_getcwd(NULL, 0);
+        if (!cwd) return NULL;
+        joined = zc_path_join_alloc(cwd, path);
+        free(cwd);
+    } else {
+        joined = zc_strdup(path);
+    }
+
+    if (!joined) return NULL;
+
+    // 1. Fix slashes and redundancies
+    zc_path_normalize(joined); 
+    
+    // 2. Apply logical backtracking (the internal helper)
+    _internal_path_collapse(joined);
+
+    return joined;
+}
+
+/**
+ * @brief Joins two path segments into a single path.
+ *
+ * This function allocates a new string that combines the base path and the suffix path,
+ * ensuring that there is exactly one path separator between them.
+ *
+ * @param base The base path segment.
+ * @param suffix The suffix path segment to append to the base.
+ * @return A newly allocated string containing the joined path.
+ *         The caller is responsible for freeing this string.
+ */
+char* zc_path_join_alloc(const char* base, const char* suffix) {
+    if (!base && !suffix) return NULL;
+    if (!base) return strdup(suffix);
+    if (!suffix) return strdup(base);
+
+    size_t len_base = strlen(base);
+    size_t len_suffix = strlen(suffix);
+
+    // Determine if we need to insert a separator
+    // We need one if base doesn't end with one AND suffix doesn't start with one
+    bool needs_sep = true;
+    if (len_base > 0 && (base[len_base - 1] == ZC_POSIX_PATHSEP || base[len_base - 1] == ZC_WINDOWS_PATHSEP)) {
+        needs_sep = false;
+    }
+    if (len_suffix > 0 && (suffix[0] == ZC_POSIX_PATHSEP || suffix[0] == ZC_WINDOWS_PATHSEP)) {
+        needs_sep = false;
+    }
+
+    // Allocation size: base + (sep?) + suffix + null
+    size_t total_size = len_base + (needs_sep ? 1 : 0) + len_suffix + 1;
+    char* res = (char*)malloc(total_size);
+    if (!res) return NULL;
+
+    // Build the string
+    memcpy(res, base, len_base);
+    char* p = res + len_base;
+
+    if (needs_sep) {
+        *p++ = ZC_POSIX_PATHSEP; // Use POSIX as your internal standard
+    }
+
+    memcpy(p, suffix, len_suffix);
+    p[len_suffix] = '\0';
+
+    return res;
 }
 
 
@@ -520,62 +803,68 @@ void zc_normalize_path(char *path) {
  * @brief Searches for a file in the working directory and in paths specified
  *        by the ZC_LIBRARY_PATH environment variable.
  *
- * @param fn The filename to search for.
+ * @param filename The filename to search for.
  * @param out_path Pointer to store the resolved path if found.
  * @return true if the file was found, false otherwise.
  */
-bool zc_find_path(const char *fn, char **out_path) {
-    // 1. Always check the Working Directory FIRST
-    if (zc_access(fn, ZC_R_OK) == 0) {
-        *out_path = zc_strdup(fn);
-        return true;
-    }
+bool zc_path_find(const char *filename, char **out_path) {
+    if (!filename || !out_path) return false;
 
-    // 2. Check the Environment Variable
-    const char *env_std_path = zc_getenv("ZC_LIBRARY_PATHS");
-    if (!env_std_path) {
+    // 1. Handle Absolute Paths immediately
+    if (zc_path_is_absolute(filename)) {
+        if (zc_access(filename, ZC_R_OK) == 0) {
+            *out_path = zc_path_resolve_alloc(filename);
+            return true;
+        }
         return false;
     }
 
-    // Duplicate env string so we can mutate it with strtok
-    char *paths = zc_strdup(env_std_path);
-    if (!paths) return false;
-
-    // Normalize delimiters: treat both : and ; as separators on POSIX
-#ifdef ZC_ON_POSIX
-    for (char *p = paths; *p; ++p) {
-        if (*p == ':') *p = ';';
+    // 2. Check Working Directory (and resolve it for the caller)
+    if (zc_access(filename, ZC_R_OK) == 0) {
+        *out_path = zc_path_resolve_alloc(filename);
+        return true;
     }
+
+    // 3. Search Environment Paths
+    const char *env_std_path = zc_getenv("ZC_LIBRARY_PATHS");
+    if (!env_std_path) return false;
+
+    // Use a copy to avoid mutating the environment directly
+    char *paths_copy = zc_strdup(env_std_path);
+    if (!paths_copy) return false;
+
+    char *saveptr; // For thread-safe parsing
+#ifdef ZC_ON_WINDOWS
+    char *delim = ";";
+    char *path = strtok_s(paths_copy, delim, &saveptr);
+#else
+    char *delim = ":;"; // POSIX usually uses ':', but we can support both
+    char *path = strtok_r(paths_copy, delim, &saveptr);
 #endif
 
     bool found = false;
-    char *path = strtok(paths, ";");
-    
     while (path != NULL) {
-        zc_normalize_path(path);
-
-        // Calculate required size to avoid 1024 buffer overflow
-        // path length + separator + fn length + null terminator
-        size_t needed = strlen(path) + 1 + strlen(fn) + 1;
-        char *test_path = (char *)malloc(needed);
-        
-        if (test_path) {
-            // Build the path safely
-            snprintf(test_path, needed, "%s%c%s", path, ZC_PATHSEP, fn);
-
-            if (zc_access(test_path, ZC_R_OK) == 0) {
-                *out_path = test_path; // Hand off ownership to caller
+        char* joined = zc_path_join_alloc(path, filename);
+        if (joined) {
+            fprintf(stderr, "Checking path: %s for %s\n", joined, filename);
+            // Check existence FIRST before doing the heavy resolve
+            if (zc_access(joined, ZC_R_OK) == 0) {
+                *out_path = zc_path_resolve_alloc(joined);
                 found = true;
-                break; 
+                free(joined);
+                break;
             }
-            free(test_path);
+            free(joined);
         }
         
-        path = strtok(NULL, ";");
+#ifdef ZC_ON_WINDOWS
+        path = strtok_s(NULL, delim, &saveptr);
+#else
+        path = strtok_r(NULL, delim, &saveptr);
+#endif
     }
 
-    free(paths); // Clean up our temporary copy of the env string
-    
+    free(paths_copy);
     return found;
 }
 
@@ -588,7 +877,7 @@ char* zc_getcwd(char *buf, size_t size) {
 #endif
 }
 
-bool zc_is_path_absolute(const char* path) {
+bool zc_path_is_absolute(const char* path) {
     if (!path || !*path) return false;
 #ifdef ZC_ON_WINDOWS
     return (strlen(path) >= 2 && path[1] == ':');
