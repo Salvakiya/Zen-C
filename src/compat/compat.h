@@ -168,6 +168,9 @@ int    zc_clock_gettime(int clock_id, zc_timespec* ts);
 void*  zc_xcalloc(size_t nmemb, size_t size);
 void*  zc_xrealloc(void* ptr, size_t size);
 
+const char *zc_getenv(const char* name);
+int         zc_setenv(const char* name, const char* value, int overwrite);
+
 int zc_dup(int fd);
 int zc_dup2(int oldfd, int newfd);
 int zc_open(const char* pathname, int flags);
@@ -898,6 +901,37 @@ void*  zc_xrealloc(void* ptr, size_t size){
     return new_ptr;
 }
 
+
+/**
+    * Sets a default environment variable if it is not already set.
+    * 
+    * @param key The name of the environment variable.
+    * @param val The default value to set if the variable is not already set.
+*/
+const char * zc_getenv(const char* key) {
+    return getenv(key);
+}
+
+/**
+    * Sets an environment variable.
+    * 
+    * @param key The name of the environment variable.
+    * @param val The value to set for the variable.
+    * @param overwrite If non-zero, overwrite the existing value if it exists.
+    * @return 0 on success, non-zero on failure.
+*/
+int zc_setenv(const char* key, const char* val, int overwrite) {
+    if (!key || !val) return 0;
+    if (!overwrite) {
+        const char* existing = zc_getenv(key);
+        if (existing) return 0; // Do not overwrite
+    }
+#ifdef ZC_ON_WINDOWS
+    return _putenv_s(key, val);
+#else
+    return setenv(key, val, overwrite);
+#endif
+}
 
 int zc_dup(int fd) {
 #ifdef ZC_ON_WINDOWS

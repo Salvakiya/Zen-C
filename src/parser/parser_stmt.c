@@ -36,7 +36,7 @@ bool find_path(const char *fn, char **out_path) {
     }
 
     // 2. Check the Environment Variable
-    const char *env_std_path = getenv("ZC_LIBRARY_PATH");
+    const char *env_std_path = getenv("ZC_LIBRARY_PATHS");
     if (!env_std_path) {
         return false;
     }
