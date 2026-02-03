@@ -61,6 +61,7 @@ int main(int argc, char **argv)
     if (z_is_windows())
     {
         strcpy(g_config.cc, "gcc.exe");
+        strcat(g_link_flags, " -lws2_32");
     }
     else
     {
@@ -326,11 +327,12 @@ int main(int argc, char **argv)
     codegen_node(&ctx, root, out);
     fclose(out);
 
-    if (g_config.mode_transpile)
+    if (g_config.mode_transpile || g_config.mode_run)
     {
         if (g_config.output_file)
         {
             // If user specified -o, rename temp file to that
+            remove(g_config.output_file); // Remove if exists
             if (rename(temp_source_file, g_config.output_file) != 0)
             {
                 perror("rename output");
@@ -392,7 +394,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    if (!g_config.emit_c)
+    if (!g_config.emit_c && !g_config.output_file)
     {
         // remove("out.c"); // Keep it for debugging for now or follow flag
         remove(temp_source_file);

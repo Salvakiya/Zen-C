@@ -17,6 +17,82 @@ char *curr_func_ret = NULL;
 char *run_comptime_block(ParserContext *ctx, Lexer *l);
 extern char *g_current_filename;
 
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
+
+// Assuming these are your internal wrappers
+extern void zc_normalize_path(char *path);
+extern int zc_access(const char *path, int mode);
+extern char *zc_strdup(const char *s);
+
+/**
+ * @brief Searches for a file in the working directory and in paths specified
+ *        by the ZC_LIBRARY_PATH environment variable.
+ *
+ * @param fn The filename to search for.
+ * @param out_path Pointer to store the resolved path if found.
+ * @return true if the file was found, false otherwise.
+ */
+static bool find_path(const char *fn, char **out_path) {
+    // 1. Always check the Working Directory FIRST
+    if (zc_access(fn, ZC_R_OK) == 0) {
+        *out_path = zc_strdup(fn);
+        return true;
+    }
+
+    // 2. Check the Environment Variable
+    const char *env_std_path = getenv("ZC_LIBRARY_PATH");
+    if (!env_std_path) {
+        return false;
+    }
+
+    // Duplicate env string so we can mutate it with strtok
+    char *paths = zc_strdup(env_std_path);
+    if (!paths) return false;
+
+    // Normalize delimiters: treat both : and ; as separators on POSIX
+#ifdef ZC_ON_POSIX
+    for (char *p = paths; *p; ++p) {
+        if (*p == ':') *p = ';';
+    }
+#endif
+
+    bool found = false;
+    char *path = strtok(paths, ";");
+    
+    while (path != NULL) {
+        zc_normalize_path(path);
+
+        // Calculate required size to avoid 1024 buffer overflow
+        // path length + separator + fn length + null terminator
+        size_t needed = strlen(path) + 1 + strlen(fn) + 1;
+        char *test_path = (char *)malloc(needed);
+        
+        if (test_path) {
+            // Build the path safely
+            snprintf(test_path, needed, "%s%c%s", path, ZC_PATHSEP, fn);
+
+            if (zc_access(test_path, ZC_R_OK) == 0) {
+                *out_path = test_path; // Hand off ownership to caller
+                found = true;
+                break; 
+            }
+            free(test_path);
+        }
+        
+        path = strtok(NULL, ";");
+    }
+
+    free(paths); // Clean up our temporary copy of the env string
+    
+    return found;
+}
+
+
 /**
  * @brief Auto-imports std/slice.zc if not already imported.
  *
@@ -37,57 +113,13 @@ static void auto_import_std_slice(ParserContext *ctx)
     }
 
     // Try to find and import std/slice.zc
-    static const char *std_paths[] = {"std/slice.zc", "./std/slice.zc", NULL};
-    static const char *system_paths[] = {"/usr/local/share/zenc", "/usr/share/zenc", NULL};
-
-    char resolved_path[1024];
-    int found = 0;
-
-    // First, try relative to current file
-    if (g_current_filename)
+    char* resolved_path = NULL;
+    if (find_path("std/slice.zc", &resolved_path))
     {
-        char *current_dir = xstrdup(g_current_filename);
-        char *last_slash = strrchr(current_dir, '/');
-        if (last_slash)
-        {
-            *last_slash = 0;
-            snprintf(resolved_path, sizeof(resolved_path), "%s/std/slice.zc", current_dir);
-            if (zc_access(resolved_path, ZC_R_OK) == 0)
-            {
-                found = 1;
-            }
-        }
-        free(current_dir);
+        // Found in working directory or ZC_LIBRARY_PATH
+        // Handled below
     }
-
-    // Try relative paths
-    if (!found)
-    {
-        for (int i = 0; std_paths[i] && !found; i++)
-        {
-            if (zc_access(std_paths[i], ZC_R_OK) == 0)
-            {
-                strncpy(resolved_path, std_paths[i], sizeof(resolved_path) - 1);
-                resolved_path[sizeof(resolved_path) - 1] = '\0';
-                found = 1;
-            }
-        }
-    }
-
-    // Try system paths
-    if (!found)
-    {
-        for (int i = 0; system_paths[i] && !found; i++)
-        {
-            snprintf(resolved_path, sizeof(resolved_path), "%s/std/slice.zc", system_paths[i]);
-            if (zc_access(resolved_path, ZC_R_OK) == 0)
-            {
-                found = 1;
-            }
-        }
-    }
-
-    if (!found)
+    else
     {
         return; // Could not find std/slice.zc, instantiate_generic will error
     }
@@ -96,7 +128,7 @@ static void auto_import_std_slice(ParserContext *ctx)
     char *real_fn = realpath(resolved_path, NULL);
     if (real_fn)
     {
-        strncpy(resolved_path, real_fn, sizeof(resolved_path) - 1);
+        strncpy(resolved_path, real_fn, strlen(real_fn));
         resolved_path[sizeof(resolved_path) - 1] = '\0';
         free(real_fn);
     }
@@ -3157,25 +3189,15 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l)
     // Check if file exists, if not try system-wide paths
     if (zc_access(fn, ZC_R_OK) != 0)
     {
-        // Try system-wide standard library location
-        static const char *system_paths[] = {"/usr/local/share/zenc", "/usr/share/zenc", NULL};
+        char *resolved = NULL;
 
-        char system_path[1024];
-        int found = 0;
+        if (find_path(fn, &resolved)) {
+            free(fn); 
+            fn = resolved; // Update your working pointer to the new path
+        } else {
+            // Not found in ZENC_PATH, 'fn' remains unchanged
+            // any fallback logic goes here
 
-        for (int i = 0; system_paths[i] && !found; i++)
-        {
-            snprintf(system_path, sizeof(system_path), "%s/%s", system_paths[i], fn);
-            if (zc_access(system_path, ZC_R_OK) == 0)
-            {
-                free(fn);
-                fn = xstrdup(system_path);
-                found = 1;
-            }
-        }
-
-        if (!found)
-        {
             // File not found anywhere - will error later when trying to open
         }
     }

@@ -147,6 +147,8 @@ void   zc_free_split_paths(char** paths);
 void   zc_normalize_path(char *path);
 char*  zc_getcwd(char *buf, size_t size);
 
+bool zc_is_path_absolute(const char* path);
+
 ZCDir *zc_opendir(const char *path);
 const ZCDirEnt *zc_readdir(ZCDir *dir);
 void zc_closedir(ZCDir *dir);
@@ -425,23 +427,104 @@ void zc_free_split_paths(char** paths) {
     free(paths);
 }
 
+// void zc_normalize_path(char *path) {
+// #ifdef ZC_ON_WINDOWS
+//     for (char *p = path; *p; ++p) {
+//         if (*p == ZC_POSIX_PATHSEP) *p = ZC_WINDOWS_PATHSEP;
+//     }
+// #else
+//     for (char *p = path; *p; ++p) {
+//         if (*p == ZC_WINDOWS_PATHSEP) *p = ZC_POSIX_PATHSEP;
+//     }
+// #endif
+// }
+
+
 void zc_normalize_path(char *path) {
-#ifdef ZC_ON_WINDOWS
-    for (char *p = path; *p; ++p) {
-        if (*p == ZC_POSIX_PATHSEP) *p = ZC_WINDOWS_PATHSEP;
+    if (!path || !*path) return;
+
+    // 1. Uniform Slashes
+    for (char *p = path; *p; p++) if (*p == ZC_WINDOWS_PATHSEP) *p = ZC_POSIX_PATHSEP;
+
+    char *src = path;
+    char *dst = path;
+    char *base = path; // The point where we stop backtracking
+
+    // 2. Handle Root/Prefix
+#ifdef _WIN32
+    if (src[0] && src[1] == ':') { // "C:\"
+        *dst++ = *src++;
+        *dst++ = *src++;
+        base = dst; 
+        if (*src == ZC_POSIX_PATHSEP) { *dst++ = *src++; base = dst; }
+    } else if (src[0] == ZC_POSIX_PATHSEP) { // "\"
+        *dst++ = *src++;
+        base = dst;
     }
 #else
-    for (char *p = path; *p; ++p) {
-        if (*p == ZC_WINDOWS_PATHSEP) *p = ZC_POSIX_PATHSEP;
+    if (src[0] == ZC_POSIX_PATHSEP) { // "/"
+        *dst++ = *src++;
+        base = dst;
     }
 #endif
+
+    // 3. Process segments
+    while (*src) {
+        if (*src == ZC_POSIX_PATHSEP) { src++; continue; } // Skip redundant slashes
+
+        char *seg_start = src;
+        while (*src && *src != ZC_POSIX_PATHSEP) src++;
+        size_t len = src - seg_start;
+
+        if (len == 1 && seg_start[0] == '.') {
+            continue; // Skip "."
+        } 
+        
+        if (len == 2 && seg_start[0] == '.' && seg_start[1] == '.') {
+            // Backtrack logic
+            if (dst > base) {
+                // We have a folder to pop
+                dst--; // Move before the last separator
+                while (dst > base && *(dst - 1) != ZC_POSIX_PATHSEP) dst--;
+            } else if (base == path) {
+                // Relative path and we are at the very start, 
+                // so we must keep the ".."
+                if (dst > path) *dst++ = ZC_POSIX_PATHSEP;
+                *dst++ = '.'; *dst++ = '.';
+            }
+            // If it's absolute (base > path) and we are at base, 
+            // we just ignore ".." because you can't go above root.
+            continue;
+        }
+
+        // Normal segment
+        if (dst > path && *(dst - 1) != ZC_POSIX_PATHSEP) *dst++ = ZC_POSIX_PATHSEP;
+        memmove(dst, seg_start, len);
+        dst += len;
+    }
+
+    // 4. Final touch
+    if (dst == path) {
+        *dst++ = '.'; // Empty relative path becomes "."
+    }
+    *dst = '\0';
 }
+
 
 char* zc_getcwd(char *buf, size_t size) {
 #ifdef ZC_ON_WINDOWS
     return _getcwd(buf, (int)size);
 #else
     return getcwd(buf, size);
+#endif
+}
+
+bool zc_is_path_absolute(const char* path) {
+    if (!path || !*path) return false;
+#ifdef ZC_ON_WINDOWS
+    return (strlen(path) >= 2 && path[1] == ':');
+#else
+    return path[0] == '/';
 #endif
 }
 
