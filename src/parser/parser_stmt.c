@@ -52,7 +52,7 @@ static void auto_import_std_slice(ParserContext *ctx)
         {
             *last_slash = 0;
             snprintf(resolved_path, sizeof(resolved_path), "%s/std/slice.zc", current_dir);
-            if (access(resolved_path, R_OK) == 0)
+            if (zc_access(resolved_path, ZC_R_OK) == 0)
             {
                 found = 1;
             }
@@ -65,7 +65,7 @@ static void auto_import_std_slice(ParserContext *ctx)
     {
         for (int i = 0; std_paths[i] && !found; i++)
         {
-            if (access(std_paths[i], R_OK) == 0)
+            if (zc_access(std_paths[i], ZC_R_OK) == 0)
             {
                 strncpy(resolved_path, std_paths[i], sizeof(resolved_path) - 1);
                 resolved_path[sizeof(resolved_path) - 1] = '\0';
@@ -80,7 +80,7 @@ static void auto_import_std_slice(ParserContext *ctx)
         for (int i = 0; system_paths[i] && !found; i++)
         {
             snprintf(resolved_path, sizeof(resolved_path), "%s/std/slice.zc", system_paths[i]);
-            if (access(resolved_path, R_OK) == 0)
+            if (zc_access(resolved_path, ZC_R_OK) == 0)
             {
                 found = 1;
             }
@@ -2995,11 +2995,13 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l)
         strncpy(plugin_name, plugin_tok.start + 1, name_len);
         plugin_name[name_len] = '\0';
 
+        zc_normalize_path(plugin_name);
+
         if (plugin_name[0] == '.' &&
-            (plugin_name[1] == '/' || (plugin_name[1] == '.' && plugin_name[2] == '/')))
+            (plugin_name[1] == ZC_PATHSEP || (plugin_name[1] == '.' && plugin_name[2] == ZC_PATHSEP)))
         {
             char *current_dir = xstrdup(g_current_filename);
-            char *last_slash = strrchr(current_dir, '/');
+            char *last_slash = strrchr(current_dir, ZC_PATHSEP);
             if (last_slash)
             {
                 *last_slash = 0;
@@ -3117,15 +3119,17 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l)
     strncpy(fn, t.start + 1, ln);
     fn[ln] = 0;
 
+    zc_normalize_path(fn);
+
     // Resolve paths relative to current file
     char resolved_path[1024];
-    int is_explicit_relative = (fn[0] == '.' && (fn[1] == '/' || (fn[1] == '.' && fn[2] == '/')));
+    int is_explicit_relative = (fn[0] == '.' && (fn[1] == ZC_PATHSEP || (fn[1] == '.' && fn[2] == ZC_PATHSEP)));
 
     // Try to resolve relative to current file if not absolute
-    if (fn[0] != '/')
+    if (fn[0] != ZC_PATHSEP)
     {
         char *current_dir = xstrdup(g_current_filename);
-        char *last_slash = strrchr(current_dir, '/');
+        char *last_slash = strrchr(current_dir, ZC_PATHSEP);
         if (last_slash)
         {
             *last_slash = 0; // Truncate to directory
@@ -3141,7 +3145,7 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l)
             snprintf(resolved_path, sizeof(resolved_path), "%s/%s", current_dir, leaf);
 
             // If it's an explicit relative path, OR if the file exists at this relative location
-            if (is_explicit_relative || access(resolved_path, R_OK) == 0)
+            if (is_explicit_relative || zc_access(resolved_path, ZC_R_OK) == 0)
             {
                 free(fn);
                 fn = xstrdup(resolved_path);
@@ -3151,7 +3155,7 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l)
     }
 
     // Check if file exists, if not try system-wide paths
-    if (access(fn, R_OK) != 0)
+    if (zc_access(fn, ZC_R_OK) != 0)
     {
         // Try system-wide standard library location
         static const char *system_paths[] = {"/usr/local/share/zenc", "/usr/share/zenc", NULL};
@@ -3162,7 +3166,7 @@ ASTNode *parse_import(ParserContext *ctx, Lexer *l)
         for (int i = 0; system_paths[i] && !found; i++)
         {
             snprintf(system_path, sizeof(system_path), "%s/%s", system_paths[i], fn);
-            if (access(system_path, R_OK) == 0)
+            if (zc_access(system_path, ZC_R_OK) == 0)
             {
                 free(fn);
                 fn = xstrdup(system_path);
