@@ -84,13 +84,21 @@ int main(int argc, char **argv)
     free(_executable_path);
     free(_executable_dir);
 
-
     memset(&g_config, 0, sizeof(g_config));
+    
+    g_config.cc[0] = '\0'; //removes a warning later
+
+    // setup default settings
+    // setting g_config.linker_flags here propagates to comptime
+    strcat(g_config.linker_flags, " -lm");
 #ifdef ZC_ON_WINDOWS
-        strcpy(g_config.cc, "gcc.exe");
-        strcat(g_config.linker_flags, " -lws2_32");
+    strcpy(g_config.cc, "gcc.exe");
+    strcat(g_config.linker_flags, " -lws2_32");
 #else
-        strcpy(g_config.cc, "gcc");
+    strcpy(g_config.cc, "gcc");
+    if (g_parser_ctx->has_async){
+        strcat(g_config.linker_flags, " -lpthread");
+    }
 #endif
 
     if (argc < 2)
@@ -379,29 +387,41 @@ int main(int argc, char **argv)
         return 0;
     }
 
+
+#define SAFE_SNPRINTF(buf, bufsz, fmt, ...)                                  \
+    do                                                                      \
+    {                                                                       \
+        int _n = snprintf(NULL, 0, fmt, __VA_ARGS__);                       \
+        if (_n < 0 || _n >= (int)(bufsz))                                   \
+        {                                                                   \
+            fprintf(stderr, "Error: SAFE_SNPRINTF: buffer '%s' too small "  \
+                            "(needed %d, have %zu)\n", #buf, _n + 1, (size_t)(bufsz)); \
+        }                                                                   \
+        else                                                                \
+        {                                                                   \
+            snprintf(buf, bufsz, fmt, __VA_ARGS__);                         \
+        }                                                                   \
+    } while (0)
+
+
+
     // Compile C
-    char cmd[8192];
+    char cmd[MAX_CMD_SIZE];
+    cmd[0] = '\0';
     char *outfile = g_config.output_file ? g_config.output_file : "a" ZC_BINARY_EXT;
 
-    const char *thread_flag = g_parser_ctx->has_async ? "-lpthread" : "";
-    const char *math_flag = "-lm";
-
-    if (z_is_windows())
-    {
-        // Windows might use different flags or none for math/threads
-        math_flag = "";
-        if (g_parser_ctx->has_async)
-        {
-            thread_flag = "";
-        }
-    }
-
     // If using cosmocc, it handles these usually, but keeping them is okay for Linux targets
+    char * fstring = "%s %s %s %s %s -o %s %s -I./src %s %s";
 
-    snprintf(cmd, sizeof(cmd), "%s %s %s %s %s -o %s %s %s %s -I./src %s %s", g_config.cc,
-             g_config.gcc_flags, g_cflags, g_config.is_freestanding ? "-ffreestanding" : "",
-             g_config.quiet ? "-w" : "", outfile, temp_source_file, math_flag, thread_flag,
-             g_link_flags, g_config.linker_flags);
+    SAFE_SNPRINTF(cmd, sizeof(cmd), fstring,
+                                g_config.cc, g_config.gcc_flags, g_cflags,
+                                g_config.is_freestanding ? "-ffreestanding" : "",
+                                g_config.quiet ? "-w" : "", outfile, temp_source_file,
+                                g_config.linker_flags);
+    if (cmd[0] == '\0') {
+        fprintf(stderr, "Error: Command string construction failed.\n");
+        return 1;
+    }
 
     if (g_config.verbose)
     {

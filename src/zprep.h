@@ -49,6 +49,7 @@
 #define realloc(p, s) xrealloc(p, s) ///< Reallocate memory.
 #define calloc(n, s) xcalloc(n, s)   ///< Allocate and zero memory.
 
+
 // ** GLOBAL STATE **
 extern char *g_current_filename; ///< Current filename.
 
@@ -205,6 +206,7 @@ char *load_file(const char *filename);
 #define MAX_FLAGS_SIZE 1024
 #define MAX_PATH_SIZE 1024
 #define MAX_PATTERN_SIZE 1024
+#define MAX_CMD_SIZE 8192
 
 // ** Build Directives **
 extern char g_link_flags[MAX_FLAGS_SIZE];
@@ -364,7 +366,7 @@ typedef struct
 
     // GCC Flags accumulator.
     char gcc_flags[4096]; ///< Flags passed to the backend compiler.
-    char linker_flags[4096]; ///< Linker flags passed to the backend compiler.
+    char linker_flags[MAX_FLAGS_SIZE]; ///< Linker flags passed to the backend compiler.
 
     // C Compiler selection (default: gcc)
     char cc[64]; ///< Backend compiler command (e.g. "gcc", "clang").
