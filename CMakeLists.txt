@@ -20,9 +20,14 @@ if(MSVC)
     # MSVC: Enable warnings, debug info, disable security warnings
     add_compile_options(/W4 /Zi /D_CRT_SECURE_NO_WARNINGS)
 elseif(CMAKE_C_COMPILER_ID MATCHES "Clang|AppleClang")
-    add_compile_options(-Wall -Wextra -g -lws2_32)
+    add_compile_options(-Wall -Wextra -g)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lws2_32")
 elseif(CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    add_compile_options(-Wall -Wextra -g -lws2_32)
+    add_compile_options(-Wall -Wextra -g)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lws2_32")
+elseif(CMAKE_C_COMPILER_ID STREQUAL "TinyCC")
+    add_compile_options(-Wall -g)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lws2_32")
 endif()
 
 # --- Find Required Packages (Modern CMake Way) ---
