@@ -4,6 +4,7 @@ zc
 result
 out.c
 a.out
+a.exe
 *.o
 *.so
 *.dll
