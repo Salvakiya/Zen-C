@@ -1491,35 +1491,7 @@ fn main() {
 
 我們歡迎各類貢獻！無論是修復 Bug、完善文檔，還是提出新功能建議。
 
-### 如何貢獻
-1.  **Fork 倉庫**：標準的 GitHub 工作流程。
-2.  **創建功能分支**：`git checkout -b feature/NewThing`。
-3.  **代碼規範**：
-    *   遵循現有的 C 風格。
-    *   確保所有測試通過：`make test`。
-    *   在 `tests/` 中為你的功能添加新測試。
-4.  **提交拉取請求**：清晰地描述你的更改。
-
-### 運行測試
-測試套件是你最好的朋友。
-
-```bash
-# 運行所有測試 (GCC)
-make test
-
-# 運行特定的測試
-./zc run tests/test_match.zc
-
-# 使用不同的編譯器運行
-./tests/run_tests.sh --cc clang
-./tests/run_tests.sh --cc zig
-./tests/run_tests.sh --cc tcc
-```
-
-### 擴展編譯器
-*   **解析器 (Parser)**：`src/parser/` - 遞歸下降解析器。
-*   **代碼生成 (Codegen)**：`src/codegen/` - 轉譯邏輯 (Zen C -> GNU C/C11)。
-*   **標準庫 (Standard Library)**：`std/` - 使用 Zen C 本身編寫。
+請參閱 [CONTRIBUTING_ZH_TW.md](CONTRIBUTING_ZH_TW.md) 了解有關如何貢獻、運行測試和提交拉取請求的詳細指南。
 
 ---
 

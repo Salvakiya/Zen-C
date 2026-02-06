@@ -1489,35 +1489,7 @@ fn main() {
 
 Nós damos boas-vindas a contribuições! Seja consertando bugs, adicionando documentação ou propondo novas funcionalidades.
 
-### Como Contribuir
-1.  **Fork do Repositório**: workflow padrão do GitHub.
-2.  **Crie um Feature Branch**: `git checkout -b feature/NewThing`.
-3.  **Diretrizes de Código**:
-    *   Siga o estilo C existente.
-    *   Garanta que todos os testes passem: `make test`.
-    *   Adicione novos testes para sua funcionalidade em `tests/`.
-4.  **Submeta um Pull Request**: Descreva suas mudanças claramente.
-
-### Executando Testes
-A suíte de testes é sua melhor amiga.
-
-```bash
-# Execute todos os testes (GCC)
-make test
-
-# Execute teste específico
-./zc run tests/test_match.zc
-
-# Execute com compilador diferente
-./tests/run_tests.sh --cc clang
-./tests/run_tests.sh --cc zig
-./tests/run_tests.sh --cc tcc
-```
-
-### Estendendo o Compilador
-*   **Parser**: `src/parser/` - Parser de descida recursiva.
-*   **Codegen**: `src/codegen/` - Lógica do transpilador (Zen C -> GNU C/C11).
-*   **Biblioteca Padrão**: `std/` - Escrita em Zen C.
+Por favor, veja [CONTRIBUTING_PT_BR.md](CONTRIBUTING_PT_BR.md) para diretrizes detalhadas sobre como contribuir, executar testes e submeter pull requests.
 
 ---
 
